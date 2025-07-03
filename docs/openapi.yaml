@@ -1,0 +1,988 @@
+openapi: 3.0.3
+info:
+  title: IV Ingestion API
+  description: |
+    Comprehensive API for home inspection data processing and management.
+    
+    ## Features
+    - File upload and processing for multiple formats (PDF, DOCX, XLSX)
+    - Real-time processing status updates
+    - Webhook notifications for processing events
+    - User management and authentication
+    - Inspection data management
+    - Queue monitoring and administration
+    
+    ## Authentication
+    The API supports two authentication methods:
+    - **JWT Tokens**: For user sessions and web access
+    - **API Keys**: For programmatic access and integrations
+    
+    ## Rate Limiting
+    - Free Tier: 100 requests/15min, 10 files/day
+    - Pro Tier: 1000 requests/15min, 100 files/day
+    - Enterprise Tier: 10000 requests/15min, 1000 files/day
+    
+    ## Webhooks
+    Subscribe to real-time events for processing updates, inspection changes, and system notifications.
+    
+    ## SDKs
+    Official SDKs available for:
+    - JavaScript/TypeScript
+    - Python
+    - PHP
+    
+    For more information, visit our [documentation](https://docs.iv-ingestion.com).
+  version: 1.0.0
+  contact:
+    name: IV Ingestion Support
+    email: support@iv-ingestion.com
+    url: https://support.iv-ingestion.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.iv-ingestion.com/v1
+    description: Production server
+  - url: https://staging-api.iv-ingestion.com/v1
+    description: Staging server
+  - url: http://localhost:3000/api
+    description: Local development server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Check the health status of the API server
+      tags:
+        - System
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                success: true
+                data:
+                  status: "healthy"
+                  timestamp: "2025-07-03T17:18:06.595Z"
+                  message: "API server is running"
+                  services:
+                    database: "connected"
+                    redis: "connected"
+                    fileStorage: "connected"
+                    queue: "healthy"
+
+  /auth/login:
+    post:
+      summary: User Login
+      description: Authenticate user and receive JWT token
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "user@example.com"
+              password: "password123"
+              rememberMe: true
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                success: true
+                data:
+                  user:
+                    id: "1"
+                    email: "user@example.com"
+                    firstName: "John"
+                    lastName: "Doe"
+                    role: "user"
+                    isEmailVerified: true
+                    createdAt: "2025-01-01T00:00:00Z"
+                    updatedAt: "2025-01-01T00:00:00Z"
+                  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refreshToken: "refresh_token_here"
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register:
+    post:
+      summary: User Registration
+      description: Register a new user account
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: "newuser@example.com"
+              password: "password123"
+              firstName: "Jane"
+              lastName: "Smith"
+              confirmPassword: "password123"
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      summary: Get Current User
+      description: Retrieve current user profile information
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /files/upload:
+    post:
+      summary: Upload File
+      description: Upload a file for processing
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (PDF, DOCX, XLSX)
+                metadata:
+                  type: string
+                  description: JSON string with additional metadata
+                  example: '{"propertyId": "123", "inspectionType": "residential"}'
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadResponse'
+              example:
+                success: true
+                data:
+                  fileId: "file_12345"
+                  filename: "inspection-report.pdf"
+                  size: 1024000
+                  status: "uploaded"
+                  processingJobId: "job_67890"
+                  estimatedProcessingTime: 30
+        '400':
+          description: Invalid file or metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /files/{fileId}:
+    get:
+      summary: Get File Status
+      description: Retrieve file processing status and metadata
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File ID
+      responses:
+        '200':
+          description: File status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileStatusResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /files/{fileId}/download:
+    get:
+      summary: Download File
+      description: Download processed file
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File ID
+      responses:
+        '200':
+          description: File downloaded
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /inspections:
+    get:
+      summary: List Inspections
+      description: Retrieve list of inspections with filtering and pagination
+      tags:
+        - Inspections
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Items per page
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processing, completed, failed]
+          description: Filter by status
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter by start date
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter by end date
+      responses:
+        '200':
+          description: Inspections retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectionsListResponse'
+
+  /inspections/{inspectionId}:
+    get:
+      summary: Get Inspection Details
+      description: Retrieve detailed inspection information
+      tags:
+        - Inspections
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inspectionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Inspection ID
+      responses:
+        '200':
+          description: Inspection details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectionDetailResponse'
+        '404':
+          description: Inspection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webhooks:
+    get:
+      summary: List Webhooks
+      description: Retrieve user's webhook configurations
+      tags:
+        - Webhooks
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Webhooks retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhooksListResponse'
+
+    post:
+      summary: Create Webhook
+      description: Register a new webhook endpoint
+      tags:
+        - Webhooks
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookCreateRequest'
+            example:
+              url: "https://myapp.com/webhooks/processing"
+              events: ["processing.started", "processing.completed", "processing.failed"]
+              description: "Processing status updates"
+      responses:
+        '201':
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookResponse'
+
+  /webhooks/{webhookId}:
+    delete:
+      summary: Delete Webhook
+      description: Remove a webhook endpoint
+      tags:
+        - Webhooks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Webhook ID
+      responses:
+        '204':
+          description: Webhook deleted
+        '404':
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/metrics:
+    get:
+      summary: System Metrics
+      description: Retrieve system performance metrics (Admin only)
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Metrics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMetricsResponse'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/queues:
+    get:
+      summary: Queue Status
+      description: Retrieve processing queue status (Admin only)
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Queue status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminQueuesResponse'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for user authentication
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for programmatic access
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [healthy, degraded, unhealthy]
+            timestamp:
+              type: string
+              format: date-time
+            message:
+              type: string
+            services:
+              type: object
+              properties:
+                database:
+                  type: string
+                redis:
+                  type: string
+                fileStorage:
+                  type: string
+                queue:
+                  type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+        password:
+          type: string
+          minLength: 8
+          description: User password
+        rememberMe:
+          type: boolean
+          default: false
+          description: Keep user logged in
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            token:
+              type: string
+              description: JWT access token
+            refreshToken:
+              type: string
+              description: Refresh token for token renewal
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+        - confirmPassword
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        firstName:
+          type: string
+          minLength: 1
+        lastName:
+          type: string
+          minLength: 1
+        confirmPassword:
+          type: string
+          description: Must match password
+
+    RegisterResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            token:
+              type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [user, admin, inspector]
+        isEmailVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/User'
+
+    FileUploadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            fileId:
+              type: string
+            filename:
+              type: string
+            size:
+              type: integer
+            status:
+              type: string
+              enum: [uploaded, processing, completed, failed]
+            processingJobId:
+              type: string
+            estimatedProcessingTime:
+              type: integer
+              description: Estimated processing time in seconds
+
+    FileStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            fileId:
+              type: string
+            filename:
+              type: string
+            size:
+              type: integer
+            mimeType:
+              type: string
+            status:
+              type: string
+              enum: [uploaded, processing, completed, failed]
+            progress:
+              type: integer
+              minimum: 0
+              maximum: 100
+            uploadedAt:
+              type: string
+              format: date-time
+            processedAt:
+              type: string
+              format: date-time
+            processingTime:
+              type: integer
+              description: Processing time in milliseconds
+            findings:
+              type: array
+              items:
+                $ref: '#/components/schemas/Finding'
+
+    Finding:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+          enum: [electrical, plumbing, structural, hvac, roofing, interior, exterior, safety, other]
+        severity:
+          type: string
+          enum: [critical, major, minor]
+        title:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        estimatedCost:
+          type: number
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+
+    InspectionsListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            inspections:
+              type: array
+              items:
+                $ref: '#/components/schemas/Inspection'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+
+    Inspection:
+      type: object
+      properties:
+        id:
+          type: string
+        propertyId:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        inspectionDate:
+          type: string
+          format: date
+        completedAt:
+          type: string
+          format: date-time
+        findingsCount:
+          type: integer
+        criticalFindings:
+          type: integer
+        majorFindings:
+          type: integer
+        minorFindings:
+          type: integer
+        estimatedCost:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    InspectionDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/Inspection'
+            - type: object
+              properties:
+                findings:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Finding'
+                property:
+                  $ref: '#/components/schemas/Property'
+
+    Property:
+      type: object
+      properties:
+        id:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: string
+        propertyType:
+          type: string
+          enum: [residential, commercial, industrial]
+        squareFootage:
+          type: integer
+        yearBuilt:
+          type: integer
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    WebhookCreateRequest:
+      type: object
+      required:
+        - url
+        - events
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Webhook endpoint URL
+        events:
+          type: array
+          items:
+            type: string
+            enum: [processing.started, processing.progress, processing.completed, processing.failed, inspection.created, inspection.updated, finding.added, user.registered]
+          description: Events to subscribe to
+        description:
+          type: string
+          description: Optional description for the webhook
+
+    WebhookResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+            url:
+              type: string
+            events:
+              type: array
+              items:
+                type: string
+            description:
+              type: string
+            isActive:
+              type: boolean
+            createdAt:
+              type: string
+              format: date-time
+            lastTriggered:
+              type: string
+              format: date-time
+
+    WebhooksListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            webhooks:
+              type: array
+              items:
+                $ref: '#/components/schemas/WebhookResponse'
+
+    AdminMetricsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            filesProcessed:
+              type: object
+              properties:
+                today:
+                  type: integer
+                yesterday:
+                  type: integer
+                total:
+                  type: integer
+            queueDepth:
+              type: object
+              properties:
+                current:
+                  type: integer
+                average:
+                  type: integer
+                trend:
+                  type: string
+                  enum: [increasing, decreasing, stable]
+            errorRate:
+              type: object
+              properties:
+                current:
+                  type: number
+                average:
+                  type: number
+                trend:
+                  type: string
+            activeUsers:
+              type: object
+              properties:
+                current:
+                  type: integer
+                total:
+                  type: integer
+            processingRate:
+              type: object
+              properties:
+                perHour:
+                  type: integer
+                perDay:
+                  type: integer
+
+    AdminQueuesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              waiting:
+                type: integer
+              active:
+                type: integer
+              completed:
+                type: integer
+              failed:
+                type: integer
+              delayed:
+                type: integer
+              workers:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    status:
+                      type: string
+                      enum: [idle, working, error]
+                    currentJob:
+                      type: string
+                    processedJobs:
+                      type: integer
+                    failedJobs:
+                      type: integer
+                    uptime:
+                      type: integer
+                    lastHeartbeat:
+                      type: string
+                      format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: false
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+tags:
+  - name: System
+    description: System health and status endpoints
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Files
+    description: File upload and processing management
+  - name: Inspections
+    description: Inspection data management
+  - name: Webhooks
+    description: Webhook configuration and management
+  - name: Admin
+    description: Administrative endpoints (admin access required) 
