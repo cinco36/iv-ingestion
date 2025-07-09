@@ -43,6 +43,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.10.0",
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.5",
     "bullmq": "^5.56.0",
@@ -64,6 +65,7 @@
     "lodash": "^4.17.21",
     "mammoth": "^1.9.1",
     "moment": "^2.29.4",
+    "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
@@ -71,13 +73,15 @@
     "pg": "^8.11.3",
     "redis": "^4.7.1",
     "sharp": "^0.34.2",
+    "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "tesseract.js": "^6.0.1",
     "uuid": "^9.0.1",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "@babel/core": "^7.28.0",

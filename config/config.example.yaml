@@ -1,0 +1,46 @@
+# IV Ingestion Configuration Example
+# Copy this file to config.yaml and modify as needed
+
+# Ingestion settings
+ingestion_interval: 60  # seconds between ingestion cycles
+log_level: INFO  # DEBUG, INFO, WARNING, ERROR
+
+# Data sources configuration
+data_sources:
+  - name: "source_1"
+    type: "file"
+    path: "/path/to/data/source1"
+    format: "csv"
+    enabled: true
+  - name: "source_2"
+    type: "api"
+    url: "https://api.example.com/data"
+    headers:
+      Authorization: "Bearer your-token-here"
+    enabled: false
+
+# Database configuration
+database:
+  host: "localhost"
+  port: 5432
+  name: "iv_ingestion"
+  user: "postgres"
+  password: ""  # Set via environment variable IV_DB_PASSWORD
+
+# API configuration (if running as a service)
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+
+# Processing settings
+processing:
+  batch_size: 1000
+  max_workers: 4
+  timeout: 300  # seconds
+
+# Storage settings
+storage:
+  type: "local"  # local, s3, gcs
+  path: "./data"
+  retention_days: 30 
